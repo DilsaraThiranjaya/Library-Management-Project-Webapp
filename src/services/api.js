@@ -97,5 +97,15 @@ export const api = {
         const response = await fetch(`${BASE_URL}/files/list`);
         if (!response.ok) throw new Error('Failed to fetch files');
         return response.json();
+    },
+
+    getDownloadUrl: (filename) => `${BASE_URL}/files/${encodeURIComponent(filename)}`,
+
+    deleteFile: async (filename) => {
+        const response = await fetch(`${BASE_URL}/files/${encodeURIComponent(filename)}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete file');
+        return response.json();
     }
 };

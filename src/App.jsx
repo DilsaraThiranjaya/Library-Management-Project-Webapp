@@ -401,6 +401,7 @@ function FilesPage({ addToast }) {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   const fetchFiles = async () => {
     setLoading(true)
@@ -424,6 +425,15 @@ function FilesPage({ addToast }) {
     finally { setUploading(false) }
   }
 
+  const handleDelete = async (filename) => {
+    try {
+      await api.deleteFile(filename)
+      addToast('File deleted successfully!')
+      setConfirmDelete(null)
+      fetchFiles()
+    } catch (err) { addToast(err.message, 'error') }
+  }
+
   const handleDrop = (e) => {
     e.preventDefault()
     setDragOver(false)
@@ -431,9 +441,17 @@ function FilesPage({ addToast }) {
     if (file) handleUpload(file)
   }
 
+  const formatSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+  }
+
   const getFileIcon = (name) => {
-    const ext = name.split('.').pop().toLowerCase()
-    const icons = { pdf: '📄', png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', zip: '📦', mp4: '🎬', mp3: '🎵' }
+    const ext = (name || '').split('.').pop().toLowerCase()
+    const icons = { pdf: '📄', png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️', webp: '🖼️', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', csv: '📊', zip: '📦', rar: '📦', mp4: '🎬', avi: '🎬', mp3: '🎵', wav: '🎵', txt: '📃', json: '📃', xml: '📃' }
     return icons[ext] || '📎'
   }
 
@@ -462,16 +480,56 @@ function FilesPage({ addToast }) {
       </div>
 
       {files.length > 0 && (
-        <div className="file-list">
-          {files.map((name, i) => (
-            <div key={i} className="file-item">
-              <div className="file-item-name">
-                <span className="file-item-icon">{getFileIcon(name)}</span>
-                <span>{name}</span>
-              </div>
-              <span className="badge badge-info">GCS</span>
-            </div>
-          ))}
+        <div className="data-table-wrapper" style={{ marginTop: '1.5rem' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((file, i) => (
+                <tr key={i}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '1.3rem' }}>{getFileIcon(file.filename)}</span>
+                      <div>
+                        <div style={{ fontWeight: 500, color: 'var(--text)', fontSize: '0.9rem' }}>
+                          {file.originalFilename || file.filename}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          {file.filename}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="badge badge-info">{file.contentType || 'unknown'}</span>
+                  </td>
+                  <td>{formatSize(file.size)}</td>
+                  <td>
+                    <div className="btn-group" style={{ justifyContent: 'flex-end' }}>
+                      <a
+                        href={api.getDownloadUrl(file.filename)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-secondary btn-sm"
+                        style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        ⬇ Download
+                      </a>
+                      <button className="btn-danger btn-sm" onClick={() => setConfirmDelete(file.filename)}>
+                        🗑 Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -481,9 +539,18 @@ function FilesPage({ addToast }) {
           <p>Use the upload area above to store files in the cloud.</p>
         </div>
       )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          message={`Are you sure you want to delete "${confirmDelete}"?`}
+          onConfirm={() => handleDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </>
   )
 }
+
 
 // ==================== MAIN APP ====================
 function App() {
