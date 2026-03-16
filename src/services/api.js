@@ -1,12 +1,19 @@
 const BASE_URL = 'http://localhost:8080/api';
 
 export const api = {
-    // Books
+    // ==================== BOOKS ====================
     getAllBooks: async () => {
         const response = await fetch(`${BASE_URL}/books`);
         if (!response.ok) throw new Error('Failed to fetch books');
         return response.json();
     },
+
+    getBookById: async (id) => {
+        const response = await fetch(`${BASE_URL}/books/${id}`);
+        if (!response.ok) throw new Error('Failed to fetch book');
+        return response.json();
+    },
+
     createBook: async (bookData) => {
         const response = await fetch(`${BASE_URL}/books`, {
             method: 'POST',
@@ -17,12 +24,36 @@ export const api = {
         return response.json();
     },
 
-    // Members
+    updateBook: async (id, bookData) => {
+        const response = await fetch(`${BASE_URL}/books/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bookData)
+        });
+        if (!response.ok) throw new Error('Failed to update book');
+        return response.json();
+    },
+
+    deleteBook: async (id) => {
+        const response = await fetch(`${BASE_URL}/books/${id}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete book');
+    },
+
+    // ==================== MEMBERS ====================
     getAllMembers: async () => {
         const response = await fetch(`${BASE_URL}/members`);
         if (!response.ok) throw new Error('Failed to fetch members');
         return response.json();
     },
+
+    getMemberById: async (id) => {
+        const response = await fetch(`${BASE_URL}/members/${id}`);
+        if (!response.ok) throw new Error('Failed to fetch member');
+        return response.json();
+    },
+
     createMember: async (memberData) => {
         const response = await fetch(`${BASE_URL}/members`, {
             method: 'POST',
@@ -33,7 +64,24 @@ export const api = {
         return response.json();
     },
 
-    // Files
+    updateMember: async (id, memberData) => {
+        const response = await fetch(`${BASE_URL}/members/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(memberData)
+        });
+        if (!response.ok) throw new Error('Failed to update member');
+        return response.json();
+    },
+
+    deleteMember: async (id) => {
+        const response = await fetch(`${BASE_URL}/members/${id}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete member');
+    },
+
+    // ==================== FILES ====================
     uploadFile: async (file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -44,6 +92,7 @@ export const api = {
         if (!response.ok) throw new Error('Failed to upload file');
         return response.json();
     },
+
     listFiles: async () => {
         const response = await fetch(`${BASE_URL}/files/list`);
         if (!response.ok) throw new Error('Failed to fetch files');

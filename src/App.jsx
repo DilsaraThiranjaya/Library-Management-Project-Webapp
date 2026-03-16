@@ -1,236 +1,535 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import { api } from './services/api'
 
-function App() {
-  // Books State
-  const [books, setBooks] = useState(null)
-  const [bookForm, setBookForm] = useState({ title: '', author: '', isbn: '', stock: 0 })
-  
-  // Members State
-  const [members, setMembers] = useState(null)
-  const [memberForm, setMemberForm] = useState({ name: '', email: '', phone: '' })
-  
-  // File State
-  const [fileResponse, setFileResponse] = useState(null)
-  const [selectedFile, setSelectedFile] = useState(null)
-  
-  // UI States
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+// ==================== TOAST SYSTEM ====================
+function ToastContainer({ toasts, onDismiss }) {
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type}`} onClick={() => onDismiss(t.id)}>
+          <span>{t.type === 'success' ? '✓' : '✕'}</span>
+          <span>{t.message}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-  const handleFetchBooks = async () => {
-    try {
-      setLoading(true)
-      const data = await api.getAllBooks()
-      setBooks(data)
-      setError(null)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+function useToast() {
+  const [toasts, setToasts] = useState([])
+  const addToast = useCallback((message, type = 'success') => {
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
+  }, [])
+  const dismiss = useCallback(id => setToasts(prev => prev.filter(t => t.id !== id)), [])
+  return { toasts, addToast, dismiss }
+}
 
-  const handleAddBook = async (e) => {
+// ==================== CONFIRM MODAL ====================
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <div className="confirm-dialog">
+          <div className="confirm-icon">⚠️</div>
+          <p>{message}</p>
+          <div className="btn-group" style={{ justifyContent: 'center' }}>
+            <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+            <button className="btn-danger" onClick={onConfirm}>Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ==================== BOOK FORM MODAL ====================
+function BookFormModal({ book, onSave, onClose }) {
+  const [form, setForm] = useState(book || { title: '', author: '', isbn: '', stock: 0 })
+  const [saving, setSaving] = useState(false)
+  const isEdit = !!book?.id
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setSaving(true)
     try {
-      setLoading(true)
-      await api.createBook(bookForm)
-      setBookForm({ title: '', author: '', isbn: '', stock: 0 })
-      handleFetchBooks()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFetchMembers = async () => {
-    try {
-      setLoading(true)
-      const data = await api.getAllMembers()
-      setMembers(data)
-      setError(null)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAddMember = async (e) => {
-    e.preventDefault()
-    try {
-      setLoading(true)
-      await api.createMember(memberForm)
-      setMemberForm({ name: '', email: '', phone: '' })
-      handleFetchMembers()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFileUpload = async (e) => {
-    e.preventDefault()
-    if (!selectedFile) return
-    try {
-      setLoading(true)
-      const data = await api.uploadFile(selectedFile)
-      setFileResponse(data)
-      setError(null)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+      await onSave(form, isEdit)
+      onClose()
+    } catch { /* toast handled in parent */ }
+    finally { setSaving(false) }
   }
 
   return (
-    <div className="container">
-      <header>
-        <h1>Library Nexus</h1>
-        <p>Microservice Ecosystem Management</p>
-      </header>
-
-      {error && <div className="error-message">⚠️ Error: {error}</div>}
-      {loading && <div style={{textAlign: 'center', marginBottom: '1rem'}}>Processing...</div>}
-
-      <div className="grid">
-        {/* Books Section */}
-        <section className="card">
-          <h2>📚 Books</h2>
-          <button className="secondary" onClick={handleFetchBooks}>Load All Books</button>
-          
-          <form onSubmit={handleAddBook}>
-            <div className="form-group">
-              <label>Title</label>
-              <input 
-                type="text" 
-                value={bookForm.title} 
-                onChange={(e) => setBookForm({...bookForm, title: e.target.value})} 
-                placeholder="The Great Gatsby"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Author</label>
-              <input 
-                type="text" 
-                value={bookForm.author} 
-                onChange={(e) => setBookForm({...bookForm, author: e.target.value})} 
-                placeholder="F. Scott Fitzgerald"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>ISBN</label>
-              <input 
-                type="text" 
-                value={bookForm.isbn} 
-                onChange={(e) => setBookForm({...bookForm, isbn: e.target.value})} 
-                placeholder="978-0743273565"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Stock</label>
-              <input 
-                type="number" 
-                value={bookForm.stock} 
-                onChange={(e) => setBookForm({...bookForm, stock: parseInt(e.target.value)})}
-                required
-              />
-            </div>
-            <button className="primary" type="submit">Add New Book</button>
-          </form>
-
-          {books && (
-            <div className="response-container">
-              <h3>Inventory JSON</h3>
-              <pre>{JSON.stringify(books, null, 2)}</pre>
-            </div>
-          )}
-        </section>
-
-        {/* Members Section */}
-        <section className="card">
-          <h2>👥 Members</h2>
-          <button className="secondary" onClick={handleFetchMembers}>Load All Members</button>
-          
-          <form onSubmit={handleAddMember}>
-            <div className="form-group">
-              <label>Full Name</label>
-              <input 
-                type="text" 
-                value={memberForm.name} 
-                onChange={(e) => setMemberForm({...memberForm, name: e.target.value})} 
-                placeholder="John Doe"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Email Address</label>
-              <input 
-                type="email" 
-                value={memberForm.email} 
-                onChange={(e) => setMemberForm({...memberForm, email: e.target.value})} 
-                placeholder="john@example.com"
-                required
-              />
-            </div>
-             <div className="form-group">
-              <label>Phone Number</label>
-              <input 
-                type="text" 
-                value={memberForm.phone} 
-                onChange={(e) => setMemberForm({...memberForm, phone: e.target.value})} 
-                placeholder="+1 234 567 890"
-                required
-              />
-            </div>
-            <button className="primary" type="submit">Register Member</button>
-          </form>
-
-          {members && (
-            <div className="response-container">
-              <h3>Directory JSON</h3>
-              <pre>{JSON.stringify(members, null, 2)}</pre>
-            </div>
-          )}
-        </section>
-
-        {/* File Upload Section */}
-        <section className="card">
-          <h2>☁️ Cloud Storage</h2>
-          <p style={{color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem'}}>Upload assets to Google Cloud Storage</p>
-          
-          <form onSubmit={handleFileUpload}>
-            <div className="form-group file-input-wrapper">
-               <button type="button" className="secondary">{selectedFile ? selectedFile.name : 'Select File'}</button>
-               <input 
-                type="file" 
-                onChange={(e) => setSelectedFile(e.target.files[0])} 
-              />
-            </div>
-            <button className="primary" type="submit" disabled={!selectedFile}>Upload to GCS</button>
-          </form>
-
-          {fileResponse && (
-            <div className="response-container">
-              <h3>Upload Success JSON</h3>
-              <pre>{JSON.stringify(fileResponse, null, 2)}</pre>
-              {fileResponse.publicUrl && (
-                <div style={{marginTop: '1rem'}}>
-                  <a href={fileResponse.publicUrl} target="_blank" rel="noreferrer" style={{color: 'var(--accent)'}}>View Uploaded File</a>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{isEdit ? '✏️ Edit Book' : '📖 Add New Book'}</h3>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Title</label>
+            <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="The Great Gatsby" required />
+          </div>
+          <div className="form-group">
+            <label>Author</label>
+            <input type="text" value={form.author} onChange={e => setForm({...form, author: e.target.value})} placeholder="F. Scott Fitzgerald" required />
+          </div>
+          <div className="form-group">
+            <label>ISBN</label>
+            <input type="text" value={form.isbn} onChange={e => setForm({...form, isbn: e.target.value})} placeholder="978-0743273565" required />
+          </div>
+          <div className="form-group">
+            <label>Stock</label>
+            <input type="number" value={form.stock} onChange={e => setForm({...form, stock: parseInt(e.target.value) || 0})} min="0" required />
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving...' : (isEdit ? 'Update Book' : 'Add Book')}</button>
+          </div>
+        </form>
       </div>
+    </div>
+  )
+}
+
+// ==================== MEMBER FORM MODAL ====================
+function MemberFormModal({ member, onSave, onClose }) {
+  const [form, setForm] = useState(member || { name: '', email: '', phone: '' })
+  const [saving, setSaving] = useState(false)
+  const isEdit = !!member?.id
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await onSave(form, isEdit)
+      onClose()
+    } catch { /* toast handled in parent */ }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{isEdit ? '✏️ Edit Member' : '👤 Add New Member'}</h3>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Full Name</label>
+            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="John Doe" required />
+          </div>
+          <div className="form-group">
+            <label>Email Address</label>
+            <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="john@example.com" required />
+          </div>
+          <div className="form-group">
+            <label>Phone Number</label>
+            <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+94 71 234 5678" required />
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving...' : (isEdit ? 'Update Member' : 'Register Member')}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ==================== BOOKS PAGE ====================
+function BooksPage({ addToast }) {
+  const [books, setBooks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedBook, setSelectedBook] = useState(null)
+  const [showForm, setShowForm] = useState(false)
+  const [editBook, setEditBook] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+
+  const fetchBooks = async () => {
+    setLoading(true)
+    try {
+      const data = await api.getAllBooks()
+      setBooks(data)
+    } catch (err) { addToast(err.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetchBooks() }, [])
+
+  const handleSaveBook = async (form, isEdit) => {
+    try {
+      if (isEdit) {
+        await api.updateBook(form.id, { title: form.title, author: form.author, isbn: form.isbn, stock: form.stock })
+        addToast('Book updated successfully!')
+      } else {
+        await api.createBook(form)
+        addToast('Book added successfully!')
+      }
+      fetchBooks()
+      setSelectedBook(null)
+    } catch (err) { addToast(err.message, 'error'); throw err }
+  }
+
+  const handleDelete = async (id) => {
+    try {
+      await api.deleteBook(id)
+      addToast('Book deleted successfully!')
+      setConfirmDelete(null)
+      setSelectedBook(null)
+      fetchBooks()
+    } catch (err) { addToast(err.message, 'error') }
+  }
+
+  const viewBook = async (id) => {
+    try {
+      const data = await api.getBookById(id)
+      setSelectedBook(data)
+    } catch (err) { addToast(err.message, 'error') }
+  }
+
+  if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>
+
+  // ---------- DETAIL VIEW ----------
+  if (selectedBook) {
+    return (
+      <div className="detail-view">
+        <div className="detail-header">
+          <button className="back-btn" onClick={() => setSelectedBook(null)}>← Back to Books</button>
+          <div className="btn-group">
+            <button className="btn-secondary btn-sm" onClick={() => { setEditBook(selectedBook); setShowForm(true) }}>✏️ Edit</button>
+            <button className="btn-danger btn-sm" onClick={() => setConfirmDelete(selectedBook.id)}>🗑 Delete</button>
+          </div>
+        </div>
+        <div className="detail-card">
+          <div className="detail-field"><label>ID</label><div className="value">#{selectedBook.id}</div></div>
+          <div className="detail-field"><label>Title</label><div className="value">{selectedBook.title}</div></div>
+          <div className="detail-field"><label>Author</label><div className="value">{selectedBook.author}</div></div>
+          <div className="detail-field"><label>ISBN</label><div className="value">{selectedBook.isbn}</div></div>
+          <div className="detail-field">
+            <label>Stock</label>
+            <div className="value">
+              {selectedBook.stock}{' '}
+              <span className={`badge ${selectedBook.stock > 0 ? 'badge-success' : 'badge-danger'}`}>
+                {selectedBook.stock > 0 ? 'In Stock' : 'Out of Stock'}
+              </span>
+            </div>
+          </div>
+        </div>
+        {showForm && <BookFormModal book={editBook} onSave={handleSaveBook} onClose={() => { setShowForm(false); setEditBook(null) }} />}
+        {confirmDelete && <ConfirmModal message="Are you sure you want to delete this book?" onConfirm={() => handleDelete(confirmDelete)} onCancel={() => setConfirmDelete(null)} />}
+      </div>
+    )
+  }
+
+  // ---------- LIST VIEW ----------
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h2>📚 Books</h2>
+          <div className="subtitle">{books.length} book{books.length !== 1 ? 's' : ''} in the library</div>
+        </div>
+        <button className="btn-primary" onClick={() => { setEditBook(null); setShowForm(true) }}>+ Add Book</button>
+      </div>
+
+      {books.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📚</div>
+          <h3>No books yet</h3>
+          <p>Start building your library collection by adding your first book.</p>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>+ Add First Book</button>
+        </div>
+      ) : (
+        <div className="card-grid">
+          {books.map(book => (
+            <div key={book.id} className="item-card" onClick={() => viewBook(book.id)}>
+              <div className="item-card-title">{book.title}</div>
+              <div className="item-card-subtitle">by {book.author}</div>
+              <div className="item-card-meta">
+                <span className="meta-tag">📋 {book.isbn}</span>
+                <span className={`badge ${book.stock > 0 ? 'badge-success' : 'badge-danger'}`}>
+                  {book.stock > 0 ? `${book.stock} in stock` : 'Out of stock'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && <BookFormModal book={editBook} onSave={handleSaveBook} onClose={() => { setShowForm(false); setEditBook(null) }} />}
+      {confirmDelete && <ConfirmModal message="Are you sure you want to delete this book?" onConfirm={() => handleDelete(confirmDelete)} onCancel={() => setConfirmDelete(null)} />}
+    </>
+  )
+}
+
+// ==================== MEMBERS PAGE ====================
+function MembersPage({ addToast }) {
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedMember, setSelectedMember] = useState(null)
+  const [showForm, setShowForm] = useState(false)
+  const [editMember, setEditMember] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+
+  const fetchMembers = async () => {
+    setLoading(true)
+    try {
+      const data = await api.getAllMembers()
+      setMembers(data)
+    } catch (err) { addToast(err.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetchMembers() }, [])
+
+  const handleSaveMember = async (form, isEdit) => {
+    try {
+      if (isEdit) {
+        await api.updateMember(form.id, { name: form.name, email: form.email, phone: form.phone })
+        addToast('Member updated successfully!')
+      } else {
+        await api.createMember(form)
+        addToast('Member registered successfully!')
+      }
+      fetchMembers()
+      setSelectedMember(null)
+    } catch (err) { addToast(err.message, 'error'); throw err }
+  }
+
+  const handleDelete = async (id) => {
+    try {
+      await api.deleteMember(id)
+      addToast('Member removed successfully!')
+      setConfirmDelete(null)
+      setSelectedMember(null)
+      fetchMembers()
+    } catch (err) { addToast(err.message, 'error') }
+  }
+
+  const viewMember = async (id) => {
+    try {
+      const data = await api.getMemberById(id)
+      setSelectedMember(data)
+    } catch (err) { addToast(err.message, 'error') }
+  }
+
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'
+
+  if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>
+
+  // ---------- DETAIL VIEW ----------
+  if (selectedMember) {
+    return (
+      <div className="detail-view">
+        <div className="detail-header">
+          <button className="back-btn" onClick={() => setSelectedMember(null)}>← Back to Members</button>
+          <div className="btn-group">
+            <button className="btn-secondary btn-sm" onClick={() => { setEditMember(selectedMember); setShowForm(true) }}>✏️ Edit</button>
+            <button className="btn-danger btn-sm" onClick={() => setConfirmDelete(selectedMember.id)}>🗑 Delete</button>
+          </div>
+        </div>
+        <div className="detail-card">
+          <div className="detail-field"><label>ID</label><div className="value" style={{fontFamily:'monospace',fontSize:'0.85rem'}}>{selectedMember.id}</div></div>
+          <div className="detail-field"><label>Full Name</label><div className="value">{selectedMember.name}</div></div>
+          <div className="detail-field"><label>Email</label><div className="value">{selectedMember.email}</div></div>
+          <div className="detail-field"><label>Phone</label><div className="value">{selectedMember.phone}</div></div>
+          <div className="detail-field"><label>Joined</label><div className="value">{formatDate(selectedMember.joinedAt)}</div></div>
+        </div>
+        {showForm && <MemberFormModal member={editMember} onSave={handleSaveMember} onClose={() => { setShowForm(false); setEditMember(null) }} />}
+        {confirmDelete && <ConfirmModal message="Are you sure you want to remove this member?" onConfirm={() => handleDelete(confirmDelete)} onCancel={() => setConfirmDelete(null)} />}
+      </div>
+    )
+  }
+
+  // ---------- LIST VIEW ----------
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h2>👥 Members</h2>
+          <div className="subtitle">{members.length} registered member{members.length !== 1 ? 's' : ''}</div>
+        </div>
+        <button className="btn-primary" onClick={() => { setEditMember(null); setShowForm(true) }}>+ Add Member</button>
+      </div>
+
+      {members.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">👥</div>
+          <h3>No members yet</h3>
+          <p>Register your first library member to get started.</p>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>+ Register Member</button>
+        </div>
+      ) : (
+        <div className="data-table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map(m => (
+                <tr key={m.id} className="row-clickable" onClick={() => viewMember(m.id)}>
+                  <td style={{fontWeight:500,color:'var(--text)'}}>{m.name}</td>
+                  <td>{m.email}</td>
+                  <td>{m.phone}</td>
+                  <td>{formatDate(m.joinedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && <MemberFormModal member={editMember} onSave={handleSaveMember} onClose={() => { setShowForm(false); setEditMember(null) }} />}
+      {confirmDelete && <ConfirmModal message="Are you sure you want to remove this member?" onConfirm={() => handleDelete(confirmDelete)} onCancel={() => setConfirmDelete(null)} />}
+    </>
+  )
+}
+
+// ==================== FILES PAGE ====================
+function FilesPage({ addToast }) {
+  const [files, setFiles] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+
+  const fetchFiles = async () => {
+    setLoading(true)
+    try {
+      const data = await api.listFiles()
+      setFiles(data)
+    } catch (err) { addToast(err.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetchFiles() }, [])
+
+  const handleUpload = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      await api.uploadFile(file)
+      addToast(`"${file.name}" uploaded successfully!`)
+      fetchFiles()
+    } catch (err) { addToast(err.message, 'error') }
+    finally { setUploading(false) }
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleUpload(file)
+  }
+
+  const getFileIcon = (name) => {
+    const ext = name.split('.').pop().toLowerCase()
+    const icons = { pdf: '📄', png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', zip: '📦', mp4: '🎬', mp3: '🎵' }
+    return icons[ext] || '📎'
+  }
+
+  if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>
+
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h2>☁️ Cloud Storage</h2>
+          <div className="subtitle">{files.length} file{files.length !== 1 ? 's' : ''} in Google Cloud Storage</div>
+        </div>
+        <button className="btn-secondary" onClick={fetchFiles}>↻ Refresh</button>
+      </div>
+
+      <div
+        className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+      >
+        <input type="file" onChange={(e) => handleUpload(e.target.files[0])} disabled={uploading} />
+        <div className="upload-icon">{uploading ? '⏳' : '☁️'}</div>
+        <div className="upload-text">{uploading ? 'Uploading...' : 'Drop files here or click to browse'}</div>
+        <div className="upload-hint">Files are stored in Google Cloud Storage</div>
+      </div>
+
+      {files.length > 0 && (
+        <div className="file-list">
+          {files.map((name, i) => (
+            <div key={i} className="file-item">
+              <div className="file-item-name">
+                <span className="file-item-icon">{getFileIcon(name)}</span>
+                <span>{name}</span>
+              </div>
+              <span className="badge badge-info">GCS</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {files.length === 0 && !loading && (
+        <div className="empty-state" style={{ paddingTop: '2rem' }}>
+          <h3>No files uploaded</h3>
+          <p>Use the upload area above to store files in the cloud.</p>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ==================== MAIN APP ====================
+function App() {
+  const [activeTab, setActiveTab] = useState('books')
+  const { toasts, addToast, dismiss } = useToast()
+
+  const tabs = [
+    { id: 'books', label: 'Books', icon: '📚' },
+    { id: 'members', label: 'Members', icon: '👥' },
+    { id: 'files', label: 'Cloud Storage', icon: '☁️' },
+  ]
+
+  return (
+    <div className="app-layout">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <h1>Library Nexus</h1>
+          <p>Management System</p>
+        </div>
+        <nav className="sidebar-nav">
+          {tabs.map(tab => (
+            <div
+              key={tab.id}
+              className={`nav-item ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="nav-icon">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <p>ECA Final Project · 2026</p>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="main-content">
+        {activeTab === 'books' && <BooksPage addToast={addToast} />}
+        {activeTab === 'members' && <MembersPage addToast={addToast} />}
+        {activeTab === 'files' && <FilesPage addToast={addToast} />}
+      </main>
+
+      {/* Toasts */}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }
