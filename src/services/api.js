@@ -41,6 +41,25 @@ export const api = {
         if (!response.ok) throw new Error('Failed to delete book');
     },
 
+    uploadBookImage: async (id, file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch(`${BASE_URL}/books/${id}/image`, {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) throw new Error('Failed to upload book image');
+        return response.json();
+    },
+
+    deleteBookImage: async (id) => {
+        const response = await fetch(`${BASE_URL}/books/${id}/image`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete book image');
+        return response.json();
+    },
+
     // ==================== MEMBERS ====================
     getAllMembers: async () => {
         const response = await fetch(`${BASE_URL}/members`);
@@ -79,6 +98,25 @@ export const api = {
             method: 'DELETE'
         });
         if (!response.ok) throw new Error('Failed to delete member');
+    },
+
+    uploadMemberImage: async (id, file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch(`${BASE_URL}/members/${id}/image`, {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) throw new Error('Failed to upload member image');
+        return response.json();
+    },
+
+    deleteMemberImage: async (id) => {
+        const response = await fetch(`${BASE_URL}/members/${id}/image`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete member image');
+        return response.json();
     },
 
     // ==================== FILES ====================
