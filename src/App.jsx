@@ -2,6 +2,17 @@ import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import { api } from './services/api'
 
+// ==================== HELPERS ====================
+const getImageUrl = (url) => {
+  if (!url) return null;
+  // If it's a GCS URL, convert it to our proxy URL
+  if (url.includes('storage.googleapis.com')) {
+    const filename = url.substring(url.lastIndexOf('/') + 1);
+    return `http://localhost:8080/api/files/${filename}`;
+  }
+  return url;
+};
+
 // ==================== TOAST SYSTEM ====================
 function ToastContainer({ toasts, onDismiss }) {
   return (
@@ -48,14 +59,24 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
 // ==================== BOOK FORM MODAL ====================
 function BookFormModal({ book, onSave, onClose }) {
   const [form, setForm] = useState(book || { title: '', author: '', isbn: '', stock: 0 })
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(book?.imageUrl || null)
   const [saving, setSaving] = useState(false)
   const isEdit = !!book?.id
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setImageFile(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      await onSave(form, isEdit)
+      await onSave(form, imageFile, isEdit)
       onClose()
     } catch { /* toast handled in parent */ }
     finally { setSaving(false) }
@@ -85,6 +106,15 @@ function BookFormModal({ book, onSave, onClose }) {
             <label>Stock</label>
             <input type="number" value={form.stock} onChange={e => setForm({...form, stock: parseInt(e.target.value) || 0})} min="0" required />
           </div>
+          <div className="form-group">
+            <label>Cover Image (Optional)</label>
+            <input type="file" accept="image/*" onChange={handleImageChange} />
+            {imagePreview && (
+              <div style={{ marginTop: '0.5rem', borderRadius: '8px', overflow: 'hidden', width: '120px', height: '160px' }}>
+                <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+          </div>
           <div className="form-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving...' : (isEdit ? 'Update Book' : 'Add Book')}</button>
@@ -98,14 +128,24 @@ function BookFormModal({ book, onSave, onClose }) {
 // ==================== MEMBER FORM MODAL ====================
 function MemberFormModal({ member, onSave, onClose }) {
   const [form, setForm] = useState(member || { name: '', email: '', phone: '' })
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(member?.imageUrl || null)
   const [saving, setSaving] = useState(false)
   const isEdit = !!member?.id
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setImageFile(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      await onSave(form, isEdit)
+      await onSave(form, imageFile, isEdit)
       onClose()
     } catch { /* toast handled in parent */ }
     finally { setSaving(false) }
@@ -130,6 +170,15 @@ function MemberFormModal({ member, onSave, onClose }) {
           <div className="form-group">
             <label>Phone Number</label>
             <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+94 71 234 5678" required />
+          </div>
+          <div className="form-group">
+            <label>Profile Image (Optional)</label>
+            <input type="file" accept="image/*" onChange={handleImageChange} />
+            {imagePreview && (
+              <div style={{ marginTop: '0.5rem', borderRadius: '50%', overflow: 'hidden', width: '100px', height: '100px' }}>
+                <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
           </div>
           <div className="form-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
@@ -161,15 +210,22 @@ function BooksPage({ addToast }) {
 
   useEffect(() => { fetchBooks() }, [])
 
-  const handleSaveBook = async (form, isEdit) => {
+  const handleSaveBook = async (form, imageFile, isEdit) => {
     try {
+      let savedBook;
       if (isEdit) {
-        await api.updateBook(form.id, { title: form.title, author: form.author, isbn: form.isbn, stock: form.stock })
+        savedBook = await api.updateBook(form.id, { title: form.title, author: form.author, isbn: form.isbn, stock: form.stock })
         addToast('Book updated successfully!')
       } else {
-        await api.createBook(form)
+        savedBook = await api.createBook(form)
         addToast('Book added successfully!')
       }
+      
+      if (imageFile) {
+        await api.uploadBookImage(savedBook.id, imageFile)
+        addToast('Book image uploaded successfully!')
+      }
+      
       fetchBooks()
       setSelectedBook(null)
     } catch (err) { addToast(err.message, 'error'); throw err }
@@ -205,7 +261,11 @@ function BooksPage({ addToast }) {
             <button className="btn-danger btn-sm" onClick={() => setConfirmDelete(selectedBook.id)}>🗑 Delete</button>
           </div>
         </div>
-        <div className="detail-card">
+          {selectedBook.imageUrl && (
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+              <img src={getImageUrl(selectedBook.imageUrl)} alt={selectedBook.title} style={{ width: '200px', height: 'auto', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+            </div>
+          )}
           <div className="detail-field"><label>ID</label><div className="value">#{selectedBook.id}</div></div>
           <div className="detail-field"><label>Title</label><div className="value">{selectedBook.title}</div></div>
           <div className="detail-field"><label>Author</label><div className="value">{selectedBook.author}</div></div>
@@ -219,7 +279,6 @@ function BooksPage({ addToast }) {
               </span>
             </div>
           </div>
-        </div>
         {showForm && <BookFormModal book={editBook} onSave={handleSaveBook} onClose={() => { setShowForm(false); setEditBook(null) }} />}
         {confirmDelete && <ConfirmModal message="Are you sure you want to delete this book?" onConfirm={() => handleDelete(confirmDelete)} onCancel={() => setConfirmDelete(null)} />}
       </div>
@@ -248,6 +307,11 @@ function BooksPage({ addToast }) {
         <div className="card-grid">
           {books.map(book => (
             <div key={book.id} className="item-card" onClick={() => viewBook(book.id)}>
+              {book.imageUrl && (
+                <div style={{ width: '100%', height: '140px', marginBottom: '1rem', borderRadius: '8px', overflow: 'hidden' }}>
+                  <img src={getImageUrl(book.imageUrl)} alt={book.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              )}
               <div className="item-card-title">{book.title}</div>
               <div className="item-card-subtitle">by {book.author}</div>
               <div className="item-card-meta">
@@ -287,15 +351,22 @@ function MembersPage({ addToast }) {
 
   useEffect(() => { fetchMembers() }, [])
 
-  const handleSaveMember = async (form, isEdit) => {
+  const handleSaveMember = async (form, imageFile, isEdit) => {
     try {
+      let savedMember;
       if (isEdit) {
-        await api.updateMember(form.id, { name: form.name, email: form.email, phone: form.phone })
+        savedMember = await api.updateMember(form.id, { name: form.name, email: form.email, phone: form.phone })
         addToast('Member updated successfully!')
       } else {
-        await api.createMember(form)
+        savedMember = await api.createMember(form)
         addToast('Member registered successfully!')
       }
+
+      if (imageFile) {
+        await api.uploadMemberImage(savedMember.id, imageFile)
+        addToast('Member profile image uploaded successfully!')
+      }
+
       fetchMembers()
       setSelectedMember(null)
     } catch (err) { addToast(err.message, 'error'); throw err }
@@ -334,6 +405,11 @@ function MembersPage({ addToast }) {
           </div>
         </div>
         <div className="detail-card">
+          {selectedMember.imageUrl && (
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+              <img src={getImageUrl(selectedMember.imageUrl)} alt={selectedMember.name} style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+            </div>
+          )}
           <div className="detail-field"><label>ID</label><div className="value" style={{fontFamily:'monospace',fontSize:'0.85rem'}}>{selectedMember.id}</div></div>
           <div className="detail-field"><label>Full Name</label><div className="value">{selectedMember.name}</div></div>
           <div className="detail-field"><label>Email</label><div className="value">{selectedMember.email}</div></div>
@@ -378,7 +454,16 @@ function MembersPage({ addToast }) {
             <tbody>
               {members.map(m => (
                 <tr key={m.id} className="row-clickable" onClick={() => viewMember(m.id)}>
-                  <td style={{fontWeight:500,color:'var(--text)'}}>{m.name}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      {m.imageUrl ? (
+                        <img src={getImageUrl(m.imageUrl)} alt={m.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>👤</div>
+                      )}
+                      <span style={{fontWeight:500,color:'var(--text)'}}>{m.name}</span>
+                    </div>
+                  </td>
                   <td>{m.email}</td>
                   <td>{m.phone}</td>
                   <td>{formatDate(m.joinedAt)}</td>
@@ -484,6 +569,7 @@ function FilesPage({ addToast }) {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: '60px' }}>Preview</th>
                 <th>File</th>
                 <th>Type</th>
                 <th>Size</th>
@@ -493,6 +579,17 @@ function FilesPage({ addToast }) {
             <tbody>
               {files.map((file, i) => (
                 <tr key={i}>
+                  <td>
+                    {file.contentType?.startsWith('image/') ? (
+                      <div style={{ width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                        <img src={getImageUrl(file.publicUrl)} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    ) : (
+                      <div style={{ width: '40px', height: '40px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
+                        {getFileIcon(file.filename)}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '1.3rem' }}>{getFileIcon(file.filename)}</span>
@@ -550,7 +647,6 @@ function FilesPage({ addToast }) {
     </>
   )
 }
-
 
 // ==================== MAIN APP ====================
 function App() {
