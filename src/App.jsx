@@ -1,15 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import './App.css'
-import { api } from './services/api'
+import { api, BASE_URL } from './services/api'
 
 // ==================== HELPERS ====================
 const getImageUrl = (url) => {
   if (!url) return null;
-  // If it's a GCS URL, convert it to our proxy URL
+  
+  // If it's a localhost URL (from old dev data), replace it with current BASE_URL
+  if (url.includes('localhost:8080')) {
+    return url.replace('http://localhost:8080/api', BASE_URL);
+  }
+  
+  // If it's a direct GCS URL, convert it to our proxy URL
   if (url.includes('storage.googleapis.com')) {
     const filename = url.substring(url.lastIndexOf('/') + 1);
-    return `http://localhost:8080/api/files/${filename}`;
+    return `${BASE_URL}/files/${filename}`;
   }
+  
   return url;
 };
 
