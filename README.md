@@ -1,5 +1,17 @@
 # Library Management: Nexus Frontend
 
+### Student Information
+- **Student Name**: Dilsara Thiranjaya
+- **Student Number**: 2301692050
+- **Slack Handle**: Dilsara Thiranjaya
+- **GCP Project ID**: dilsara
+
+### Public Application URL
+- **Deployed Application**: [http://35.186.210.212](http://35.186.210.212)
+
+---
+
+
 This repository contains the premium React-based frontend for the Library Management System microservices ecosystem. It provides a visual dashboard to interact with Books, Members, and Cloud Storage via the API Gateway.
 
 ## Features
